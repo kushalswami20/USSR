@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { MessageCircle, Send, Loader2, ImagePlus } from 'lucide-react';
+import { MessageCircle, Send, Loader2, ImagePlus, X } from 'lucide-react';
 import Navbar from './shared/NavBar';
 import { useChatSession } from "../hooks/usechatsession";
 
@@ -8,11 +8,22 @@ const ChatComponent = () => {
   const [userInput, setUserInput] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [selectedImage, setSelectedImage] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
   const fileInputRef = useRef(null);
+  const messagesEndRef = useRef(null);
 
   const apiKey = 'MuTuMMIFYp6FZkf1XoJwrT3Bc2WScUN8';
   const externalUserId = '1';
   const { sessionId, response, error, initializeSession, sendQuery } = useChatSession(apiKey, externalUserId);
+
+  // Auto-scroll to bottom when new messages arrive
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
 
   useEffect(() => {
     initializeSession();
@@ -63,47 +74,84 @@ const ChatComponent = () => {
         timestamp: new Date()
       }]);
     }
+    setIsProcessing(false);
   };
 
-  const handleImageUpload = (e) => {
+  const handleImageUpload = async (e) => {
     const file = e.target.files[0];
-    if (file) {
-      if (file.size > 5 * 1024 * 1024) { // 5MB limit
-        setMessages(prev => [...prev, {
-          role: 'system',
-          content: 'Image size must be less than 5MB.',
-          timestamp: new Date()
-        }]);
-        return;
-      }
+    if (!file) return;
 
+    if (file.size > 5 * 1024 * 1024) {
+      setMessages(prev => [...prev, {
+        role: 'system',
+        content: 'Image size must be less than 5MB.',
+        timestamp: new Date()
+      }]);
+      return;
+    }
+
+    try {
       const reader = new FileReader();
-      reader.onload = (e) => {
-        const message = {
+      reader.onload = async (e) => {
+        const imageData = e.target.result;
+        setImagePreview(imageData);
+        
+        // Add image message immediately
+        const imageMessage = {
           role: 'user',
-          content: '',
-          image: e.target.result,
+          content: 'Uploaded an image',
+          image: imageData,
           timestamp: new Date(),
         };
-        setMessages(prev => [...prev, message]);
-        setSelectedImage(null);
+        setMessages(prev => [...prev, imageMessage]);
+        
+        // Automatically send a query about the image
+        try {
+          setIsProcessing(true);
+          await sendQuery("I've uploaded an image. Can you help analyze it?");
+        } catch (err) {
+          console.error('Error sending image query:', err);
+          setMessages(prev => [...prev, {
+            role: 'system',
+            content: 'Failed to process image. Please try again.',
+            timestamp: new Date()
+          }]);
+          setIsProcessing(false);
+        }
       };
       reader.readAsDataURL(file);
+    } catch (err) {
+      console.error('Error handling image:', err);
+      setMessages(prev => [...prev, {
+        role: 'system',
+        content: 'Failed to process image. Please try again.',
+        timestamp: new Date()
+      }]);
+    }
+  };
+
+  const clearImagePreview = () => {
+    setImagePreview(null);
+    setSelectedImage(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
     }
   };
 
   const processMessage = async () => {
-    if ((!userInput.trim() && !selectedImage) || isProcessing) return;
+    if ((!userInput.trim() && !imagePreview) || isProcessing) return;
     
     setIsProcessing(true);
     const userMessage = {
       role: 'user',
       content: userInput.trim(),
+      image: imagePreview,
       timestamp: new Date(),
     };
     
     setMessages(prev => [...prev, userMessage]);
     setUserInput('');
+    setImagePreview(null);
 
     try {
       await sendQuery(userInput.trim());
@@ -114,7 +162,6 @@ const ChatComponent = () => {
         content: 'Failed to send message. Please check your connection and try again.',
         timestamp: new Date()
       }]);
-    } finally {
       setIsProcessing(false);
     }
   };
@@ -181,6 +228,7 @@ const ChatComponent = () => {
                   </div>
                 </div>
               ))}
+              <div ref={messagesEndRef} />
               {isProcessing && (
                 <div className="flex justify-start animate-fade-in">
                   <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 shadow-lg">
@@ -191,6 +239,21 @@ const ChatComponent = () => {
             </div>
 
             <div className="border-t border-white/10 bg-white/5 backdrop-blur-lg p-4">
+              {imagePreview && (
+                <div className="mb-4 relative inline-block">
+                  <img 
+                    src={imagePreview} 
+                    alt="Preview" 
+                    className="h-20 rounded-lg object-contain"
+                  />
+                  <button
+                    onClick={clearImagePreview}
+                    className="absolute -top-2 -right-2 p-1 rounded-full bg-red-500 text-white hover:bg-red-600 transition-colors"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              )}
               <div className="flex gap-4 items-center">
                 <input
                   type="file"
@@ -218,10 +281,10 @@ const ChatComponent = () => {
                 />
                 <button
                   onClick={processMessage}
-                  disabled={isProcessing || !userInput.trim()}
+                  disabled={isProcessing || (!userInput.trim() && !imagePreview)}
                   className={`
                     p-3 rounded-xl font-medium transition-all duration-300
-                    ${isProcessing || !userInput.trim()
+                    ${isProcessing || (!userInput.trim() && !imagePreview)
                       ? 'bg-white/5 text-gray-500 cursor-not-allowed'
                       : 'bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:shadow-lg hover:shadow-blue-500/20 hover:-translate-y-0.5'}
                     flex items-center justify-center min-w-[2.5rem]
