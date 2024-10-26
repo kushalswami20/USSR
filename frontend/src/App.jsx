@@ -7,9 +7,10 @@ import Home from './components/Home';
 import SearchClaimAgent from './components/SearchClaimAgent';
 import ChatbotPage from './components/ChatBot';
 import KnowledgeAgent from './components/KnowledgeAgent';
-import ImageUpload from './components/StoringData';
+// import ImageUpload from './components/StoringData';
 import MetaMaskConnector from './components/MetaMaskConnector';
 import AddUserForm from './components/AddUserForm';
+import UserProfile from './components/Profile';
 
 
 function App() {
@@ -24,6 +25,7 @@ function App() {
       <Route path="/knowledgeagent" element={<KnowledgeAgent />} />
       <Route path="/adduser" element={<AddUserForm />} />
       {/* <Route path='/storingdata' elemnt={< ImageUpload />} /> */}
+      <Route path ='/profile' element ={<UserProfile />} />
       <Route path="/" element={<MetaMaskConnector />} />
       </Routes>
     </Router>

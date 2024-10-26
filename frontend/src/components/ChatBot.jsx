@@ -1,29 +1,122 @@
-import React, { useState } from 'react';
-import { MessageCircle, Send, Loader2 } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { MessageCircle, Send, Loader2, ImagePlus } from 'lucide-react';
 import Navbar from './shared/NavBar';
+import { useChatSession } from "../hooks/usechatsession";
 
-const ChatbotPage = () => {
+const ChatComponent = () => {
   const [messages, setMessages] = useState([]);
   const [userInput, setUserInput] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [selectedImage, setSelectedImage] = useState(null);
+  const fileInputRef = useRef(null);
+
+  const apiKey = 'MuTuMMIFYp6FZkf1XoJwrT3Bc2WScUN8';
+  const externalUserId = '1';
+  const { sessionId, response, error, initializeSession, sendQuery } = useChatSession(apiKey, externalUserId);
+
+  useEffect(() => {
+    initializeSession();
+  }, [initializeSession]);
+
+  useEffect(() => {
+    if (response) {
+      handleApiResponse(response);
+    }
+  }, [response]);
+
+  useEffect(() => {
+    if (error) {
+      console.error('Chat session error:', error);
+      setMessages(prev => [...prev, {
+        role: 'system',
+        content: 'Sorry, there was an error processing your message. Please try again.',
+        timestamp: new Date()
+      }]);
+      setIsProcessing(false);
+    }
+  }, [error]);
+
+  const handleApiResponse = (response) => {
+    try {
+      const assistantContent = response?.data?.responseMessage || 
+                             response?.data?.answer || 
+                             response?.data?.message ||
+                             response?.responseMessage ||
+                             response?.message;
+
+      if (assistantContent) {
+        const assistantMessage = {
+          role: 'assistant',
+          content: assistantContent,
+          timestamp: new Date(),
+        };
+        setMessages(prev => [...prev, assistantMessage]);
+      } else {
+        console.warn('No valid response content found:', response);
+        throw new Error('Invalid response format');
+      }
+    } catch (err) {
+      console.error('Error processing response:', err);
+      setMessages(prev => [...prev, {
+        role: 'system',
+        content: 'Sorry, I received an invalid response. Please try again.',
+        timestamp: new Date()
+      }]);
+    }
+  };
+
+  const handleImageUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) { // 5MB limit
+        setMessages(prev => [...prev, {
+          role: 'system',
+          content: 'Image size must be less than 5MB.',
+          timestamp: new Date()
+        }]);
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const message = {
+          role: 'user',
+          content: '',
+          image: e.target.result,
+          timestamp: new Date(),
+        };
+        setMessages(prev => [...prev, message]);
+        setSelectedImage(null);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   const processMessage = async () => {
-    if (!userInput.trim()) return;
+    if ((!userInput.trim() && !selectedImage) || isProcessing) return;
     
     setIsProcessing(true);
-    const newMessage = { role: 'user', content: userInput, timestamp: new Date() };
-    setMessages(prev => [...prev, newMessage]);
+    const userMessage = {
+      role: 'user',
+      content: userInput.trim(),
+      timestamp: new Date(),
+    };
+    
+    setMessages(prev => [...prev, userMessage]);
     setUserInput('');
 
-    // Simulate AI response
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    const response = {
-      role: 'assistant',
-      content: `This is a sample response to: "${userInput}"`,
-      timestamp: new Date()
-    };
-    setMessages(prev => [...prev, response]);
-    setIsProcessing(false);
+    try {
+      await sendQuery(userInput.trim());
+    } catch (err) {
+      console.error('Error sending query:', err);
+      setMessages(prev => [...prev, {
+        role: 'system',
+        content: 'Failed to send message. Please check your connection and try again.',
+        timestamp: new Date()
+      }]);
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const handleKeyPress = (e) => {
@@ -37,12 +130,10 @@ const ChatbotPage = () => {
     <div className="min-h-screen bg-gradient-to-b from-gray-900 via-gray-800 to-gray-900">
       <Navbar />
       
-      {/* Background Pattern */}
       <div className="relative min-h-[calc(100vh-64px)]">
         <div className="absolute inset-0 bg-grid-pattern opacity-10"></div>
         
         <div className="relative max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          {/* Header */}
           <div className="text-center mb-8">
             <h1 className="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 mb-4 animate-fade-in">
               AI Assistant
@@ -52,13 +143,11 @@ const ChatbotPage = () => {
             </p>
           </div>
 
-          {/* Chat Container */}
           <div className="relative backdrop-blur-lg bg-white/5 rounded-2xl shadow-2xl overflow-hidden animate-slide-up">
-            {/* Messages Area */}
             <div className="h-[60vh] overflow-y-auto p-6 space-y-4">
               {messages.length === 0 && (
                 <div className="text-center text-gray-400 py-8">
-                  Start a conversation by sending a message
+                  Start a conversation by sending a message or uploading an image
                 </div>
               )}
               {messages.map((message, index) => (
@@ -71,9 +160,18 @@ const ChatbotPage = () => {
                     max-w-[80%] rounded-2xl p-4 shadow-lg
                     ${message.role === 'user' 
                       ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white'
-                      : 'bg-white/10 backdrop-blur-md text-gray-200'}
+                      : message.role === 'system'
+                        ? 'bg-red-500/20 text-red-200'
+                        : 'bg-white/10 backdrop-blur-md text-gray-200'}
                     transform transition-all duration-300 hover:scale-[1.02]
                   `}>
+                    {message.image && (
+                      <img 
+                        src={message.image} 
+                        alt="Uploaded content"
+                        className="max-w-full rounded-lg mb-2 max-h-64 object-contain"
+                      />
+                    )}
                     <div className="text-sm">
                       {message.content}
                     </div>
@@ -92,9 +190,22 @@ const ChatbotPage = () => {
               )}
             </div>
 
-            {/* Input Area */}
             <div className="border-t border-white/10 bg-white/5 backdrop-blur-lg p-4">
               <div className="flex gap-4 items-center">
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleImageUpload}
+                  accept="image/*"
+                  className="hidden"
+                />
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="p-3 rounded-xl bg-white/10 text-gray-300 hover:bg-white/20 transition-all duration-300"
+                  title="Upload image"
+                >
+                  <ImagePlus className="h-5 w-5" />
+                </button>
                 <textarea
                   value={userInput}
                   onChange={(e) => setUserInput(e.target.value)}
@@ -131,7 +242,6 @@ const ChatbotPage = () => {
         </div>
       </div>
 
-      {/* Styles */}
       <style>{`
         .bg-grid-pattern {
           background-image: radial-gradient(circle at 1px 1px, rgba(255, 255, 255, 0.15) 1px, transparent 0);
@@ -162,7 +272,6 @@ const ChatbotPage = () => {
           animation: slide-up 0.8s ease-out forwards;
         }
 
-        /* Custom Scrollbar */
         ::-webkit-scrollbar {
           width: 6px;
         }
@@ -185,4 +294,4 @@ const ChatbotPage = () => {
   );
 };
 
-export default ChatbotPage;
+export default ChatComponent;

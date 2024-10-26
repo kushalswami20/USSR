@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrainCircuit, ImagePlus, BarChart3 } from 'lucide-react';
+import { Phone, ImagePlus, BarChart3, FileText } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import Navbar from './shared/NavBar';
 
@@ -8,24 +8,24 @@ const Home= () => {
 
   const features = [
     {
-      title: "Search And Claim Agent",
-      description: "Upload images and get AI-powered classifications in real-time",
-      icon: ImagePlus,
+      title: "24/7 Accessible Support",
+      description: "Customers can get answers any time without waiting, ensuring consistent, accurate assistance",
+      icon: Phone,
       // route: "/searchclaimagent",
       bgColor: "bg-blue-600",
       shadowColor: "shadow-blue-500/50"
     },
     {
-      title: "Multi Agent",
-      description: "Process text data using advanced NLP models",
-      icon: BrainCircuit,
+      title: " Policy Summarization ",
+      description: "Complex policies are summarized into key points, making terms easily digestible",
+      icon: FileText,
       // route: "/multiagent",
       bgColor: "bg-emerald-600",
       shadowColor: "shadow-emerald-500/50"
     },
     {
-      title: "Knowledge Agent",
-      description: "View and analyze model performance metrics",
+      title: "Profession-Specific Guidance",
+      description: "Leveraging the ON DEMAND platform's built-in agents",
       icon: BarChart3,
       // route: "/knoweledgeagent",
       bgColor: "bg-purple-600",

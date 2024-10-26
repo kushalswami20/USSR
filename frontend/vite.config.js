@@ -4,6 +4,9 @@ import { defineConfig } from "vite"
 
 export default defineConfig({
   plugins: [react()],
+  optimizeDeps: {
+    include: ['pdfjs-dist/build/pdf'],
+  },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
